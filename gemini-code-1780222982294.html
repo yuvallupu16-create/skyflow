@@ -1,0 +1,592 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Under the Red Sky - Advanced Character Customizer</title>
+    <style>
+        /* ==========================================
+           1. הגדרות בסיס ומשתני עיצוב (CSS Variables)
+           ========================================== */
+        :root {
+            --bg-base: #0a0a0a;
+            --bg-panel: #141414;
+            --bg-card: #1f1f1f;
+            --accent-primary: #ff3b00; /* אדום בוער */
+            --accent-glow: rgba(255, 59, 0, 0.4);
+            --text-main: #f0f0f0;
+            --text-muted: #888888;
+            --border-subtle: #333333;
+            --radius-md: 8px;
+            --radius-lg: 12px;
+            --transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            user-select: none;
+        }
+
+        body {
+            background-color: var(--bg-base);
+            color: var(--text-main);
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden; /* מניעת גלילה של כל העמוד */
+        }
+
+        /* ==========================================
+           2. פריסה ראשית (Main Layout)
+           ========================================== */
+        header {
+            padding: 20px 40px;
+            background: linear-gradient(to bottom, #1a0804 0%, transparent 100%);
+            border-bottom: 1px solid var(--accent-primary);
+            box-shadow: 0 0 20px var(--accent-glow);
+            z-index: 10;
+        }
+
+        header h1 {
+            font-size: 24px;
+            font-weight: 800;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            text-shadow: 0 0 10px var(--accent-primary);
+        }
+
+        .app-container {
+            display: flex;
+            flex: 1;
+            padding: 20px;
+            gap: 20px;
+            height: calc(100vh - 70px);
+        }
+
+        /* ==========================================
+           3. אזור תצוגת הדמות (Left Side)
+           ========================================== */
+        .preview-section {
+            flex: 2;
+            background-color: #000;
+            border-radius: var(--radius-lg);
+            border: 1px solid var(--border-subtle);
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            box-shadow: inset 0 0 50px rgba(0,0,0,0.8);
+        }
+
+        /* אפקט השמיים האדומים ברקע */
+        .preview-section::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: radial-gradient(circle at 50% 30%, #3a0d04 0%, #000000 70%);
+            z-index: 1;
+        }
+
+        .character-mockup {
+            z-index: 2;
+            background: rgba(20, 20, 20, 0.8);
+            padding: 30px;
+            border-radius: var(--radius-md);
+            border: 1px solid var(--border-subtle);
+            text-align: center;
+            min-width: 300px;
+            backdrop-filter: blur(5px);
+        }
+
+        .equipped-list {
+            list-style: none;
+            margin-top: 15px;
+            text-align: right;
+        }
+
+        .equipped-list li {
+            padding: 8px 0;
+            border-bottom: 1px dashed var(--border-subtle);
+            color: var(--accent-primary);
+            font-weight: bold;
+        }
+
+        .equipped-list li span {
+            color: var(--text-main);
+            font-weight: normal;
+        }
+
+        /* ==========================================
+           4. פאנל הכלים והקטגוריות (Right Side)
+           ========================================== */
+        .controls-section {
+            flex: 1;
+            min-width: 350px;
+            max-width: 450px;
+            background-color: var(--bg-panel);
+            border-radius: var(--radius-lg);
+            border: 1px solid var(--border-subtle);
+            display: flex;
+            flex-direction: column;
+            padding: 20px;
+            gap: 20px;
+        }
+
+        .tabs-container {
+            display: flex;
+            gap: 10px;
+            overflow-x: auto;
+            padding-bottom: 10px;
+            /* הסתרת פס הגלילה */
+            scrollbar-width: thin;
+            scrollbar-color: var(--accent-primary) var(--bg-panel);
+        }
+        
+        .tabs-container::-webkit-scrollbar { height: 4px; }
+        .tabs-container::-webkit-scrollbar-thumb { background: var(--accent-primary); border-radius: 4px; }
+
+        .tab-btn {
+            background-color: var(--bg-card);
+            color: var(--text-muted);
+            border: 1px solid var(--border-subtle);
+            padding: 10px 20px;
+            border-radius: var(--radius-md);
+            cursor: pointer;
+            font-weight: bold;
+            white-space: nowrap;
+            transition: var(--transition);
+        }
+
+        .tab-btn:hover {
+            color: var(--text-main);
+            border-color: #555;
+        }
+
+        .tab-btn.active {
+            background-color: rgba(255, 59, 0, 0.1);
+            color: var(--accent-primary);
+            border-color: var(--accent-primary);
+            box-shadow: 0 0 10px var(--accent-glow);
+        }
+
+        /* ==========================================
+           5. רשת הפריטים (Items Grid)
+           ========================================== */
+        .items-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+            gap: 15px;
+            overflow-y: auto;
+            flex: 1;
+            padding-right: 5px;
+        }
+        
+        .items-grid::-webkit-scrollbar { width: 6px; }
+        .items-grid::-webkit-scrollbar-thumb { background: #444; border-radius: 4px; }
+
+        .item-card {
+            background-color: var(--bg-card);
+            border: 2px solid var(--border-subtle);
+            border-radius: var(--radius-md);
+            height: 100px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: var(--transition);
+            position: relative;
+        }
+
+        .item-card:hover {
+            transform: translateY(-2px);
+            border-color: #777;
+            background-color: #2a2a2a;
+        }
+
+        .item-card.selected {
+            border-color: var(--accent-primary);
+            background-color: rgba(255, 59, 0, 0.05);
+            box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+        }
+
+        .item-card.selected::after {
+            content: '✓';
+            position: absolute;
+            top: 5px;
+            left: 5px;
+            color: var(--accent-primary);
+            font-weight: bold;
+        }
+
+        .item-name {
+            font-size: 12px;
+            text-align: center;
+            margin-top: 8px;
+            color: var(--text-main);
+        }
+
+        /* ==========================================
+           6. פאנל בחירת צבע לאיברים רובוטיים
+           ========================================== */
+        .color-picker-panel {
+            background-color: var(--bg-card);
+            padding: 15px;
+            border-radius: var(--radius-md);
+            border: 1px solid var(--border-subtle);
+            display: none; /* מוסתר כברירת מחדל */
+            animation: slideUp 0.3s ease-out;
+        }
+
+        .color-picker-panel.visible {
+            display: block;
+        }
+
+        @keyframes slideUp {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .color-picker-panel h3 {
+            font-size: 14px;
+            color: var(--accent-primary);
+            margin-bottom: 15px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .slider-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+
+        .slider-row label {
+            width: 15px;
+            font-weight: bold;
+            font-family: monospace;
+        }
+
+        input[type="range"] {
+            flex: 1;
+            height: 4px;
+            -webkit-appearance: none;
+            background: #444;
+            border-radius: 2px;
+            outline: none;
+        }
+
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: #fff;
+            cursor: pointer;
+        }
+
+        .color-preview-box {
+            height: 40px;
+            border-radius: var(--radius-md);
+            margin-top: 15px;
+            border: 2px solid #fff;
+            box-shadow: 0 0 10px rgba(255,255,255,0.2);
+            transition: background-color 0.1s;
+        }
+
+        .save-btn {
+            width: 100%;
+            padding: 15px;
+            background-color: var(--accent-primary);
+            color: white;
+            border: none;
+            border-radius: var(--radius-md);
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: var(--transition);
+            margin-top: 10px;
+        }
+
+        .save-btn:hover {
+            background-color: #ff5500;
+            box-shadow: 0 0 15px var(--accent-glow);
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <h1>Under the Red Sky - Hangar</h1>
+    </header>
+
+    <div class="app-container">
+        
+        <div class="preview-section">
+            <div class="character-mockup">
+                <h2>סטטוס דמות נוכחי</h2>
+                <ul class="equipped-list" id="equippedList">
+                    </ul>
+            </div>
+        </div>
+
+        <div class="controls-section">
+            
+            <div class="tabs-container" id="tabsContainer"></div>
+
+            <div class="items-grid" id="itemsGrid"></div>
+
+            <div class="color-picker-panel" id="colorPickerPanel">
+                <h3>צביעת רכיב רובוטי <span id="colorHexDisplay">#FFFFFF</span></h3>
+                
+                <div class="slider-row">
+                    <label style="color: #ff4444;">R</label>
+                    <input type="range" id="sliderR" min="0" max="255" value="255">
+                </div>
+                <div class="slider-row">
+                    <label style="color: #44ff44;">G</label>
+                    <input type="range" id="sliderG" min="0" max="255" value="255">
+                </div>
+                <div class="slider-row">
+                    <label style="color: #4444ff;">B</label>
+                    <input type="range" id="sliderB" min="0" max="255" value="255">
+                </div>
+                
+                <div class="color-preview-box" id="colorPreviewBox"></div>
+            </div>
+
+            <button class="save-btn" onclick="app.saveToDatabase()">שמור דמות וצא למשחק</button>
+        </div>
+
+    </div>
+
+    <script>
+        // 1. הגדרת מסד הנתונים (מוק)
+        const categoriesDef = [
+            { id: 'Torso', name: 'חולצות' },
+            { id: 'Legs', name: 'מכנסיים' },
+            { id: 'Footwear', name: 'נעליים' },
+            { id: 'RoboticArm', name: 'יד מכנית', hasColor: true },
+            { id: 'RoboticLeg', name: 'רגל מכנית', hasColor: true }
+        ];
+
+        const itemDatabase = [
+            { id: 't_basic', category: 'Torso', name: 'טי-שירט פשוטה' },
+            { id: 't_runner', category: 'Torso', name: 'מעיל רוח לפארקור' },
+            { id: 't_cyber', category: 'Torso', name: 'אפוד טקטי שחור' },
+            { id: 'l_jeans', category: 'Legs', name: 'ג\'ינס משופשף' },
+            { id: 'l_cargo', category: 'Legs', name: 'דגמ"ח טקטי' },
+            { id: 'f_sneakers', category: 'Footwear', name: 'סניקרס' },
+            { id: 'f_boots', category: 'Footwear', name: 'מגפי שטח' },
+            { id: 'f_bare', category: 'Footwear', name: 'יחף' },
+            { id: 'ra_none', category: 'RoboticArm', name: 'יד רגילה' },
+            { id: 'ra_proto', category: 'RoboticArm', name: 'זרוע אב-טיפוס' },
+            { id: 'ra_titan', category: 'RoboticArm', name: 'זרוע טיטניום כבדה' },
+            { id: 'rl_none', category: 'RoboticLeg', name: 'רגל רגילה' },
+            { id: 'rl_spring', category: 'RoboticLeg', name: 'רגל קפיצית (Dash)' }
+        ];
+
+        // 2. אובייקט הליבה שמנהל את האפליקציה (Singleton Pattern)
+        const app = {
+            activeCategory: 'Torso',
+            equippedItems: {}, // שומר מה נבחר לכל קטגוריה
+            roboticColor: { r: 255, g: 255, b: 255 },
+
+            // אלמנטים ב-DOM
+            ui: {
+                tabsContainer: document.getElementById('tabsContainer'),
+                itemsGrid: document.getElementById('itemsGrid'),
+                equippedList: document.getElementById('equippedList'),
+                colorPanel: document.getElementById('colorPickerPanel'),
+                colorPreview: document.getElementById('colorPreviewBox'),
+                hexDisplay: document.getElementById('colorHexDisplay'),
+                sliders: {
+                    r: document.getElementById('sliderR'),
+                    g: document.getElementById('sliderG'),
+                    b: document.getElementById('sliderB')
+                }
+            },
+
+            // אתחול האפליקציה
+            init() {
+                this.loadFromStorage();
+                this.renderTabs();
+                this.renderItems(this.activeCategory);
+                this.setupColorPickers();
+                this.updateCharacterPreview();
+                console.log("App Initialized Successfully.");
+            },
+
+            // בניית כפתורי הקטגוריות
+            renderTabs() {
+                this.ui.tabsContainer.innerHTML = '';
+                categoriesDef.forEach(cat => {
+                    const btn = document.createElement('button');
+                    btn.className = `tab-btn ${this.activeCategory === cat.id ? 'active' : ''}`;
+                    btn.innerText = cat.name;
+                    btn.onclick = () => this.switchCategory(cat.id);
+                    this.ui.tabsContainer.appendChild(btn);
+                });
+            },
+
+            // החלפת קטגוריה
+            switchCategory(categoryId) {
+                this.activeCategory = categoryId;
+                this.renderTabs(); // מעדכן את הסטטוס Active
+                this.renderItems(categoryId);
+                
+                // בדיקה אם הקטגוריה דורשת פאנל צבעים (כמו איברים רובוטיים)
+                const catDef = categoriesDef.find(c => c.id === categoryId);
+                if (catDef && catDef.hasColor) {
+                    this.ui.colorPanel.classList.add('visible');
+                } else {
+                    this.ui.colorPanel.classList.remove('visible');
+                }
+            },
+
+            // הצגת הפריטים בקטגוריה ספציפית
+            renderItems(categoryId) {
+                this.ui.itemsGrid.innerHTML = '';
+                const itemsToDisplay = itemDatabase.filter(item => item.category === categoryId);
+                
+                itemsToDisplay.forEach(item => {
+                    const isSelected = this.equippedItems[categoryId] === item.id;
+                    
+                    const card = document.createElement('div');
+                    card.className = `item-card ${isSelected ? 'selected' : ''}`;
+                    card.onclick = () => this.equipItem(categoryId, item.id);
+                    
+                    card.innerHTML = `
+                        <div style="font-size: 24px;">📦</div>
+                        <div class="item-name">${item.name}</div>
+                    `;
+                    this.ui.itemsGrid.appendChild(card);
+                });
+            },
+
+            // בחירת פריט והלבשתו
+            equipItem(categoryId, itemId) {
+                this.equippedItems[categoryId] = itemId;
+                this.renderItems(categoryId); // ריענון הגריד כדי להראות את ה-V
+                this.updateCharacterPreview(); // עדכון הדמות במסך שמאל
+                this.autoSave();
+            },
+
+            // עדכון חלונית הדמות הווירטואלית
+            updateCharacterPreview() {
+                this.ui.equippedList.innerHTML = '';
+                
+                categoriesDef.forEach(cat => {
+                    const equippedId = this.equippedItems[cat.id];
+                    const itemData = itemDatabase.find(i => i.id === equippedId);
+                    const itemName = itemData ? itemData.name : 'לא נבחר';
+                    
+                    // תוספת צבע לטקסט אם זה רובוט
+                    let colorStyle = '';
+                    if (cat.hasColor && equippedId && !equippedId.includes('none')) {
+                        colorStyle = `style="color: rgb(${this.roboticColor.r}, ${this.roboticColor.g}, ${this.roboticColor.b})"`;
+                    }
+
+                    const li = document.createElement('li');
+                    li.innerHTML = `${cat.name}: <span ${colorStyle}>${itemName}</span>`;
+                    this.ui.equippedList.appendChild(li);
+                });
+            },
+
+            // ניהול סליידרים של הצבע
+            setupColorPickers() {
+                const updateColor = () => {
+                    this.roboticColor = {
+                        r: parseInt(this.ui.sliders.r.value),
+                        g: parseInt(this.ui.sliders.g.value),
+                        b: parseInt(this.ui.sliders.b.value)
+                    };
+                    
+                    const rgbString = `rgb(${this.roboticColor.r}, ${this.roboticColor.g}, ${this.roboticColor.b})`;
+                    this.ui.colorPreview.style.backgroundColor = rgbString;
+                    
+                    // המרה ל-HEX לתצוגה מקצועית
+                    const hex = "#" + (1 << 24 | this.roboticColor.r << 16 | this.roboticColor.g << 8 | this.roboticColor.b).toString(16).slice(1).toUpperCase();
+                    this.ui.hexDisplay.innerText = hex;
+
+                    this.updateCharacterPreview();
+                    this.autoSave();
+                };
+
+                this.ui.sliders.r.addEventListener('input', updateColor);
+                this.ui.sliders.g.addEventListener('input', updateColor);
+                this.ui.sliders.b.addEventListener('input', updateColor);
+                
+                // עדכון ראשוני
+                this.ui.sliders.r.value = this.roboticColor.r;
+                this.ui.sliders.g.value = this.roboticColor.g;
+                this.ui.sliders.b.value = this.roboticColor.b;
+                updateColor();
+            },
+
+            // ==========================================
+            // מערכת שמירה וטעינה (Local Storage)
+            // ==========================================
+            autoSave() {
+                const saveData = {
+                    items: this.equippedItems,
+                    color: this.roboticColor
+                };
+                localStorage.setItem('RedSky_CharacterData', JSON.stringify(saveData));
+            },
+
+            loadFromStorage() {
+                const savedData = localStorage.getItem('RedSky_CharacterData');
+                if (savedData) {
+                    try {
+                        const parsed = JSON.parse(savedData);
+                        if (parsed.items) this.equippedItems = parsed.items;
+                        if (parsed.color) this.roboticColor = parsed.color;
+                    } catch (e) {
+                        console.error("Failed to load save data:", e);
+                    }
+                } else {
+                    // הגדרות ברירת מחדל אם אין שמירה
+                    this.equippedItems = {
+                        'Torso': 't_basic',
+                        'Legs': 'l_jeans',
+                        'Footwear': 'f_sneakers',
+                        'RoboticArm': 'ra_none',
+                        'RoboticLeg': 'rl_none'
+                    };
+                }
+            },
+
+            saveToDatabase() {
+                // כפתור סיום - כאן בדרך כלל עוברים לסצנה הבאה ב-Unity או שולחים API
+                const btn = document.querySelector('.save-btn');
+                btn.innerText = "נשמר בהצלחה! טוען משחק...";
+                btn.style.backgroundColor = "#28a745";
+                
+                console.log("FINAL EXPORT DATA:", JSON.stringify({
+                    equipment: this.equippedItems,
+                    mechColor: this.roboticColor
+                }, null, 2));
+
+                setTimeout(() => {
+                    btn.innerText = "שמור דמות וצא למשחק";
+                    btn.style.backgroundColor = "var(--accent-primary)";
+                }, 2000);
+            }
+        };
+
+        // הפעלת המנוע כשהעמוד נטען
+        document.addEventListener('DOMContentLoaded', () => {
+            app.init();
+        });
+
+    </script>
+</body>
+</html>
