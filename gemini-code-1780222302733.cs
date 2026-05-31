@@ -1,0 +1,368 @@
+using UnityEngine;
+using UnityEngine.UI;
+using System.Collections.Generic;
+using System; // נדרש עבור Exception handling
+
+public enum Category 
+{ 
+    Hair, 
+    Torso,       
+    Legs,        
+    Footwear,    
+    Necklace,    
+    RoboticArm,  
+    RoboticLeg   
+}
+
+[System.Serializable]
+public class CustomizationItem
+{
+    [Tooltip("שם מזהה ייחודי באנגלית (למשל: red_tshirt)")]
+    public string itemID; 
+    
+    public string itemName;
+    public Sprite icon;
+    public GameObject itemMesh;
+    public Category category;
+    public bool isDefault;
+    
+    [Tooltip("סמן אם הפריט הזה יכול לשנות צבע (כמו איברים רובוטיים)")]
+    public bool supportsColorChange = false; 
+}
+
+public class CharacterCustomizerManager : MonoBehaviour
+{
+    [Header("UI Canvas References")]
+    [SerializeField] private Transform categoriesParent;       
+    [SerializeField] private Transform itemsParent;            
+    [SerializeField] private GameObject itemIconPrefab;        
+    [SerializeField] private GameObject categoryButtonPrefab;  
+    
+    [Header("Color Picker UI (Optional)")]
+    [SerializeField] private Image colorPreview;               
+    [SerializeField] private Slider redSlider;                 
+    [SerializeField] private Slider greenSlider;               
+    [SerializeField] private Slider blueSlider;                
+
+    [Header("Character References")]
+    [SerializeField] private Transform characterRoot;          
+
+    [Header("Item Database")]
+    public List<CustomizationItem> allItems = new List<CustomizationItem>();
+
+    // מילונים לניהול נתונים - שימוש ב-Dictionary לחיפוש מהיר של O(1)
+    private Dictionary<Category, List<CustomizationItem>> itemsByCategory = new Dictionary<Category, List<CustomizationItem>>();
+    private Dictionary<Category, CustomizationItem> currentSelections = new Dictionary<Category, CustomizationItem>();
+    
+    private Color currentRoboticColor = Color.white;
+
+    private void Awake()
+    {
+        // בדיקות תקינות קריטיות לפני שהמשחק בכלל מתחיל
+        if (!ValidateReferences())
+        {
+            enabled = false; // מכבה את הסקריפט כדי למנוע קריסות בהמשך
+            return;
+        }
+    }
+
+    private void Start()
+    {
+        InitializeData();
+        GenerateCategoryButtons();
+        SetupColorPickers();
+        LoadSavedSelections(); 
+    }
+
+    private void Update()
+    {
+        // הגנה: בדיקה שיש בכלל דמות לסובב
+        if (Input.GetMouseButton(0) && characterRoot != null)
+        {
+            float rotationAmount = Input.GetAxis("Mouse X") * 250f * Time.deltaTime;
+            characterRoot.Rotate(Vector3.up, -rotationAmount);
+        }
+    }
+
+    // ==========================================
+    // בדיקת רפרנסים חסרים (Defensive Programming)
+    // ==========================================
+    private bool ValidateReferences()
+    {
+        bool isValid = true;
+        
+        if (categoriesParent == null) { Debug.LogError("[Customizer] Missing 'categoriesParent' reference!"); isValid = false; }
+        if (itemsParent == null) { Debug.LogError("[Customizer] Missing 'itemsParent' reference!"); isValid = false; }
+        if (itemIconPrefab == null) { Debug.LogError("[Customizer] Missing 'itemIconPrefab' reference!"); isValid = false; }
+        if (categoryButtonPrefab == null) { Debug.LogError("[Customizer] Missing 'categoryButtonPrefab' reference!"); isValid = false; }
+        if (characterRoot == null) { Debug.LogWarning("[Customizer] 'characterRoot' is missing. Character rotation will be disabled."); }
+        
+        if (allItems == null || allItems.Count == 0)
+        {
+            Debug.LogError("[Customizer] Item database is empty! Add items in the inspector.");
+            isValid = false;
+        }
+
+        return isValid;
+    }
+
+    // ==========================================
+    // אתחול המידע
+    // ==========================================
+    private void InitializeData()
+    {
+        itemsByCategory.Clear();
+
+        foreach (var item in allItems)
+        {
+            if (item == null) continue; // הגנה מפני פריטים ריקים ברשימה
+
+            if (string.IsNullOrEmpty(item.itemID))
+            {
+                Debug.LogWarning($"[Customizer] Item '{item.itemName}' missing ID! Generating safe fallback ID.");
+                item.itemID = Guid.NewGuid().ToString().Substring(0, 8); // יצירת ID זמני בטוח
+            }
+
+            if (!itemsByCategory.ContainsKey(item.category))
+            {
+                itemsByCategory[item.category] = new List<CustomizationItem>();
+            }
+            itemsByCategory[item.category].Add(item);
+
+            // כיבוי כל המודלים בתחילת המשחק כדי למנוע כפילויות תצוגה
+            if (item.itemMesh != null)
+            {
+                item.itemMesh.SetActive(false);
+            }
+        }
+    }
+
+    // ==========================================
+    // בניית ממשק משתמש (UI Generation)
+    // ==========================================
+    private void GenerateCategoryButtons()
+    {
+        // ניקוי זיכרון בטוח של ילדים קיימים
+        foreach (Transform child in categoriesParent) 
+        {
+            Destroy(child.gameObject);
+        }
+
+        foreach (Category category in itemsByCategory.Keys)
+        {
+            GameObject catBtnObj = Instantiate(categoryButtonPrefab, categoriesParent);
+            
+            Text btnText = catBtnObj.GetComponentInChildren<Text>();
+            if (btnText != null) 
+            {
+                btnText.text = category.ToString();
+            }
+            
+            Button btn = catBtnObj.GetComponent<Button>();
+            if (btn != null)
+            {
+                Category cat = category; // משתנה מקומי ללולאה
+                btn.onClick.RemoveAllListeners(); // מניעת זליגת זיכרון של מאזינים קודמים
+                btn.onClick.AddListener(() => LoadCategoryItems(cat));
+            }
+        }
+    }
+
+    public void LoadCategoryItems(Category selectedCategory)
+    {
+        foreach (Transform child in itemsParent) 
+        {
+            Destroy(child.gameObject);
+        }
+
+        if (!itemsByCategory.ContainsKey(selectedCategory)) return;
+
+        foreach (CustomizationItem item in itemsByCategory[selectedCategory])
+        {
+            GameObject newItemUI = Instantiate(itemIconPrefab, itemsParent);
+            Image[] images = newItemUI.GetComponentsInChildren<Image>();
+            
+            if (item.icon != null)
+            {
+                if (images.Length > 1) images[1].sprite = item.icon;
+                else if (images.Length > 0) images[0].sprite = item.icon;
+            }
+
+            Button btn = newItemUI.GetComponent<Button>();
+            if (btn != null)
+            {
+                CustomizationItem currentItem = item;
+                btn.onClick.RemoveAllListeners(); // חשוב מאוד כדי למנוע קריאות כפולות
+                btn.onClick.AddListener(() => OnItemSelect(currentItem));
+            }
+        }
+    }
+
+    // ==========================================
+    // לוגיקת בחירת פריטים
+    // ==========================================
+    public void OnItemSelect(CustomizationItem selectedItem)
+    {
+        if (selectedItem == null) return;
+
+        // כיבוי מודל ישן
+        if (currentSelections.TryGetValue(selectedItem.category, out CustomizationItem oldItem))
+        {
+            if (oldItem.itemMesh != null) 
+            {
+                oldItem.itemMesh.SetActive(false);
+            }
+        }
+
+        // הדלקת מודל חדש
+        if (selectedItem.itemMesh != null) 
+        {
+            selectedItem.itemMesh.SetActive(true);
+            
+            if (selectedItem.supportsColorChange)
+            {
+                ApplyColorToItem(selectedItem.itemMesh, currentRoboticColor);
+            }
+        }
+
+        currentSelections[selectedItem.category] = selectedItem;
+        SaveSelection(selectedItem.category, selectedItem.itemID);
+    }
+
+    // ==========================================
+    // מערכת שינוי צבע מאובטחת
+    // ==========================================
+    private void SetupColorPickers()
+    {
+        if (redSlider == null || greenSlider == null || blueSlider == null)
+        {
+            Debug.LogWarning("[Customizer] Color sliders are missing. Color customization disabled.");
+            return;
+        }
+
+        float r = PlayerPrefs.GetFloat("RoboticColor_R", 1f);
+        float g = PlayerPrefs.GetFloat("RoboticColor_G", 1f);
+        float b = PlayerPrefs.GetFloat("RoboticColor_B", 1f);
+        currentRoboticColor = new Color(r, g, b);
+
+        redSlider.value = r;
+        greenSlider.value = g;
+        blueSlider.value = b;
+
+        redSlider.onValueChanged.RemoveAllListeners();
+        greenSlider.onValueChanged.RemoveAllListeners();
+        blueSlider.onValueChanged.RemoveAllListeners();
+
+        redSlider.onValueChanged.AddListener(_ => UpdateRoboticColor());
+        greenSlider.onValueChanged.AddListener(_ => UpdateRoboticColor());
+        blueSlider.onValueChanged.AddListener(_ => UpdateRoboticColor());
+        
+        UpdateColorUIPreview();
+    }
+
+    public void UpdateRoboticColor()
+    {
+        currentRoboticColor = new Color(redSlider.value, greenSlider.value, blueSlider.value);
+        UpdateColorUIPreview();
+
+        if (currentSelections.TryGetValue(Category.RoboticArm, out CustomizationItem arm) && arm.itemMesh != null)
+        {
+            ApplyColorToItem(arm.itemMesh, currentRoboticColor);
+        }
+        
+        if (currentSelections.TryGetValue(Category.RoboticLeg, out CustomizationItem leg) && leg.itemMesh != null)
+        {
+            ApplyColorToItem(leg.itemMesh, currentRoboticColor);
+        }
+
+        PlayerPrefs.SetFloat("RoboticColor_R", currentRoboticColor.r);
+        PlayerPrefs.SetFloat("RoboticColor_G", currentRoboticColor.g);
+        PlayerPrefs.SetFloat("RoboticColor_B", currentRoboticColor.b);
+        PlayerPrefs.Save();
+    }
+
+    // תמיכה ב-URP / HDRP וב-Standard Pipeline ביחד
+    private void ApplyColorToItem(GameObject meshObj, Color newColor)
+    {
+        if (meshObj == null) return;
+
+        Renderer[] renderers = meshObj.GetComponentsInChildren<Renderer>(true);
+        foreach (Renderer rend in renderers)
+        {
+            if (rend.material == null) continue;
+
+            if (rend.material.HasProperty("_BaseColor")) // URP / HDRP
+            {
+                rend.material.SetColor("_BaseColor", newColor);
+            }
+            else if (rend.material.HasProperty("_Color")) // Standard 
+            {
+                rend.material.color = newColor;
+            }
+        }
+    }
+
+    private void UpdateColorUIPreview()
+    {
+        if (colorPreview != null)
+        {
+            colorPreview.color = currentRoboticColor;
+        }
+    }
+
+    // ==========================================
+    // מערכת שמירה וטעינה (PlayerPrefs Security)
+    // ==========================================
+    private void SaveSelection(Category category, string itemID)
+    {
+        try
+        {
+            PlayerPrefs.SetString("Customization_" + category.ToString(), itemID);
+            PlayerPrefs.Save();
+        }
+        catch (Exception e)
+        {
+            Debug.LogError($"[Customizer] Failed to save preference for {category}: {e.Message}");
+        }
+    }
+
+    private void LoadSavedSelections()
+    {
+        foreach (Category cat in System.Enum.GetValues(typeof(Category)))
+        {
+            string savedItemID = PlayerPrefs.GetString("Customization_" + cat.ToString(), "");
+            CustomizationItem itemToLoad = null;
+
+            if (!string.IsNullOrEmpty(savedItemID) && itemsByCategory.ContainsKey(cat))
+            {
+                itemToLoad = itemsByCategory[cat].Find(i => i.itemID == savedItemID);
+            }
+
+            // טעינת פריט ברירת מחדל אם אין שמירה חוקית
+            if (itemToLoad == null && itemsByCategory.ContainsKey(cat))
+            {
+                itemToLoad = itemsByCategory[cat].Find(i => i.isDefault);
+            }
+
+            if (itemToLoad != null)
+            {
+                OnItemSelect(itemToLoad);
+            }
+        }
+
+        if (itemsByCategory.Keys.Count > 0)
+        {
+            var enumerator = itemsByCategory.Keys.GetEnumerator();
+            enumerator.MoveNext();
+            LoadCategoryItems(enumerator.Current);
+        }
+    }
+
+    // ניקוי זיכרון כשיוצאים מהסצנה
+    private void OnDestroy()
+    {
+        if (redSlider != null) redSlider.onValueChanged.RemoveAllListeners();
+        if (greenSlider != null) greenSlider.onValueChanged.RemoveAllListeners();
+        if (blueSlider != null) blueSlider.onValueChanged.RemoveAllListeners();
+    }
+}
